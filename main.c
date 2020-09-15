@@ -5,54 +5,41 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#define PRINT_CNT 10
-#define THREAD_MSG "routine\n"
-#define MAIN_MSG "main\n"
-
+#define MAX_LEN 256
 #define ERROR_CODE -1
 #define SUCCESS_CODE 0
 
-
-void exitWithFailure(const char *msg, int err_code){
-    errno = err;
-    fprintf(stderr, "%s256 : %s256", msg, strerror(errno));
+void exitWithFailure(const char *msg, int errcode){
+    errno = errcode;
+    fprintf(stderr, "%.256s:%.256s\n", msg, strerror(errno));
     exit(EXIT_FAILURE);
 }
 
 void *routine(void *data){
-    int len = strlen(THREAD_MSG);
-    if (len == ERROR_CODE)
-        exitWithFailure("routine", errno);
+    if (data == NULL)
+        exitWithFailure("routine", EINVAL);
+    char *str = (char*)(data);
+    int len = strnlen(data, MAX_LEN);
+    if (len == MAX_LEN && str[MAX_LEN] != '\0')
+        exitWithFailure("routine", EINVAL);
+    while (1)
+        printf("%.256s\n", str);
 
-    for (int i = 0; i < PRINT_CNT; ++i){
-        int err = write(STDIN_FILENO, THREAD_MSG, len);
-        if (err == ERROR_CODE)
-            exitWithFailure("routine", errno);
-    }
-
-	return SUCCESS_CODE;
+    return SUCCESS_CODE;
 }
 
 int main(int argc, char **argv){
+    int arg_ind = argc > 1;
+    
     pthread_t pid;
-
-    int err = pthread_create(&pid, NULL, routine, NULL);
-    if (err != SUCCESS_CODE)
-        exitWithFailure("main", err);
-
-    err = pthread_join(pid, NULL);
-    if (err != SUCCESS_CODE)
-        exitWithFailure("main", err);
-
-    int len = strlen(MAIN_MSG);
-    if (len == ERROR_CODE)
+    int err = pthread_create(&pid, NULL, routine, (void*)(argv[arg_ind]));
+    if (err == ERROR_CODE)
         exitWithFailure("main", errno);
 
-    for (int i = 0; i < PRINT_CNT; ++i){
-        err = write(STDIN_FILENO, MAIN_MSG, len);
-        if (err == ERROR_CODE)
-            exitWithFailure("main", errno);
-    }
+    sleep(2);
+    err = pthread_cancel(pid);
+    if (err == ERROR_CODE)
+        exitWithFailure("main", errno);
 
-    pthread_exit((void*)(EXIT_SUCCESS));
+    return 0;
 }
